@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+// TestFortify_NilBinaryDoesNotPanic guards the PR-review finding: Fortify is
+// exported and historically accepted a nil *elf.File; with ldd=="" that now
+// reaches getLdd(file.Progs) which would nil-deref. Must return an error
+// instead.
+func TestFortify_NilBinaryDoesNotPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Fortify(_, nil, \"\") panicked: %v", r)
+		}
+	}()
+	_, err := Fortify("/bin/anything", nil, "")
+	if err == nil {
+		t.Error("expected error for nil binary, got nil")
+	}
+}
+
 func TestFortify_NoneDynamic(t *testing.T) {
 	binary := &elf.File{}
 	result, err := Fortify("test", binary, "none")

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -57,6 +58,23 @@ func TestRunListChecksParallel(t *testing.T) {
 			t.Errorf("parallel[%d] relro = %q, serial = %q", i,
 				parallel[i].Checks["relro"].Value, serial[i].Checks["relro"].Value)
 		}
+	}
+}
+
+// TestRunListChecksParallel_EmptyInputMarshalsAsArray guards the PR-review
+// finding: nil input must yield an empty (non-nil) slice so JSON/YAML emit
+// "[]", matching RunListChecks.
+func TestRunListChecksParallel_EmptyInputMarshalsAsArray(t *testing.T) {
+	got := RunListChecksParallel(nil, "", 4)
+	if got == nil {
+		t.Fatal("RunListChecksParallel(nil) returned nil slice; want non-nil empty slice for JSON []")
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected empty, got %d entries", len(got))
+	}
+	b, _ := json.Marshal(got)
+	if string(b) != "[]" {
+		t.Errorf("json.Marshal(empty result) = %s, want []", b)
 	}
 }
 

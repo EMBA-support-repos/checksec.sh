@@ -33,6 +33,28 @@ func TestParseProcMaps(t *testing.T) {
 	}
 }
 
+// TestParseProcMaps_VariableWhitespace exercises the real /proc/<pid>/maps
+// column layout where the inode and pathname columns are separated by multiple
+// spaces (right-aligned inode). SplitN(" ", 6) would treat each space as a
+// delimiter and shift the pathname into the wrong field.
+func TestParseProcMaps_VariableWhitespace(t *testing.T) {
+	const sample = "" +
+		"7f9c00000000-7f9c00026000 r--p 00000000 08:02 12345678                   /usr/lib64/libc.so.6\n" +
+		"7f9c00200000-7f9c00201000 r-xp 00000000 00:00 0                          [vdso]\n" +
+		"7f9c00300000-7f9c00301000 r--p 00000000 08:02 999      /opt/with spaces/lib.so\n" +
+		"7f9c00400000-7f9c00401000 rw-p 00000000 00:00 0\n" + // anonymous, trailing space then nothing
+		"7f9c00500000-7f9c00501000 r--p 00000000 08:02 1\t/usr/lib/tab.so\n" // tab separator
+	got := ParseProcMaps(strings.NewReader(sample))
+	want := []string{
+		"/usr/lib64/libc.so.6",
+		"/opt/with spaces/lib.so",
+		"/usr/lib/tab.so",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ParseProcMaps() = %#v\nwant %#v", got, want)
+	}
+}
+
 func TestParseProcMaps_Empty(t *testing.T) {
 	if got := ParseProcMaps(strings.NewReader("")); got != nil {
 		t.Errorf("ParseProcMaps(empty) = %v, want nil", got)

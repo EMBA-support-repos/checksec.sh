@@ -38,6 +38,9 @@ type fortify struct {
 // libc auto-resolution via ldd. ldd may be a pre-resolved libc path, or "" to
 // resolve it automatically.
 func Fortify(name string, binary *elf.File, ldd string) (*fortify, error) {
+	if binary == nil {
+		return nil, fmt.Errorf("Fortify: nil *elf.File for %q", name)
+	}
 	// limit to only checks that can actually be foritifed
 	// https://github.com/gcc-mirror/gcc/blob/master/gcc/builtins.def#L1112
 	supportedFuncs := []string{"__memcpy_chk", "__memmove_chk", "__mempcpy_chk", "__memset_chk", "__stpcpy_chk", "__stpncpy_chk", "__strcat_chk", "__strcpy_chk", "__strncat_chk", "__strncpy_chk", "__snprintf_chk", "__sprintf_chk", "__vsnprintf_chk", "__vsprintf_chk", "__fprintf_chk", "__printf_chk", "__vfprintf_chk", "__vprintf_chk"}

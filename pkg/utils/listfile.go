@@ -41,7 +41,8 @@ func RunListChecks(paths []string, libc string) []FileReport {
 // workers <= 0 defaults to GOMAXPROCS.
 func RunListChecksParallel(paths []string, libc string, workers int) []FileReport {
 	if len(paths) == 0 {
-		return nil
+		// Non-nil so JSON/YAML marshal as "[]", matching RunListChecks.
+		return []FileReport{}
 	}
 	if workers <= 0 {
 		workers = runtime.GOMAXPROCS(0)

@@ -22,13 +22,10 @@ func ParseProcMaps(r io.Reader) []string {
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		line := sc.Text()
-		// The pathname column starts after the 5 fixed whitespace-separated
-		// fields; it may itself contain spaces, so split on the first 5 only.
-		parts := strings.SplitN(line, " ", 6)
-		if len(parts) < 6 {
-			continue
-		}
-		path := strings.TrimSpace(parts[5])
+		// The pathname column starts after 5 fixed whitespace-separated fields
+		// (addr, perms, offset, dev, inode). Those five never contain spaces;
+		// the pathname may. Skip past the 5th field's end, then take the rest.
+		path := mapsPathname(line)
 		if path == "" || !strings.HasPrefix(path, "/") {
 			continue // anonymous, [vdso], [heap], etc.
 		}
@@ -42,6 +39,37 @@ func ParseProcMaps(r io.Reader) []string {
 		paths = append(paths, path)
 	}
 	return paths
+}
+
+// mapsPathname extracts the pathname (6th) column from a /proc/<pid>/maps line,
+// independent of how many whitespace characters separate the first five fields.
+// The first five fields contain no whitespace; the pathname may.
+func mapsPathname(line string) string {
+	i, fields := 0, 0
+	for i < len(line) && fields < 5 {
+		// skip leading whitespace
+		for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+			i++
+		}
+		// consume one field
+		start := i
+		for i < len(line) && line[i] != ' ' && line[i] != '\t' {
+			i++
+		}
+		if i > start {
+			fields++
+		} else {
+			break
+		}
+	}
+	if fields < 5 {
+		return ""
+	}
+	// skip whitespace before pathname
+	for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+		i++
+	}
+	return strings.TrimRight(line[i:], " \t")
 }
 
 // ProcLibs returns the unique mapped-file paths for pid, or an error if

@@ -18,6 +18,11 @@ var procCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		proc := args[0]
+		pid, err := strconv.Atoi(proc)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid pid %q: %v\n", proc, err)
+			os.Exit(1)
+		}
 
 		file, err := os.Readlink(filepath.Join("/proc", proc, "exe"))
 		if err != nil {
@@ -32,7 +37,6 @@ var procCmd = &cobra.Command{
 		}
 
 		utils.CheckElfExists(file)
-		pid, _ := strconv.Atoi(proc)
 		report := utils.RunProcChecks(pid, file, libc)
 		reports := []utils.FileReport{report}
 		utils.FilePrinter(cmd.OutOrStdout(), outputFormat, reports,
