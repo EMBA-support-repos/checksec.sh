@@ -1,10 +1,12 @@
 package utils
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/slimm609/checksec/v3/pkg/checksec"
 	"github.com/slimm609/checksec/v3/pkg/output"
@@ -87,9 +89,35 @@ func FortifyPrinter(w io.Writer, format string, r FortifyReport, opts PrintOptio
 		}
 		_, _ = w.Write(b)
 		fmt.Fprintln(w)
+	case "csv":
+		writeFortifyCSV(w, r)
 	default:
 		writeFortifyTable(w, r, opts)
 	}
+}
+
+// writeFortifyCSV emits the report as key,value rows (the report is a single
+// vertical record, not tabular). Per-function breakdown rows follow with key
+// "function" and value "<name>:<fortified>".
+func writeFortifyCSV(w io.Writer, r FortifyReport) {
+	cw := csv.NewWriter(w)
+	rows := [][]string{
+		{"name", r.Name},
+		{"fortify_source", r.FortifySource.Value},
+		{"libcSupport", r.LibcSupport.Value},
+		{"fortified", r.Fortified},
+		{"fortifyable", r.Fortifiable},
+		{"noFortify", r.NoFortify},
+		{"numLibcFunc", r.NumLibcFunc},
+		{"numFileFunc", r.NumFileFunc},
+	}
+	for _, fn := range r.Functions {
+		rows = append(rows, []string{"function", fn.Name + ":" + strconv.FormatBool(fn.Fortified)})
+	}
+	for _, row := range rows {
+		_ = cw.Write(row)
+	}
+	cw.Flush()
 }
 
 func writeFortifyTable(w io.Writer, r FortifyReport, opts PrintOptions) {

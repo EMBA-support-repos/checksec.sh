@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"encoding/xml"
 	"strings"
@@ -53,6 +54,45 @@ func TestFortifyPrinter_TableBreakdownEmpty(t *testing.T) {
 	}
 }
 
+// TestFortifyPrinter_CSV guards the PR-review finding: -o csv must not fall
+// through to the table renderer.
+func TestFortifyPrinter_CSV(t *testing.T) {
+	r := sampleFortifyReport()
+	var buf bytes.Buffer
+	FortifyPrinter(&buf, "csv", r, PrintOptions{NoBanner: true})
+	out := buf.String()
+	// Must NOT contain table-format markers.
+	if strings.Contains(out, "* File:") || strings.Contains(out, "SUMMARY") {
+		t.Fatalf("csv fell through to table renderer:\n%s", out)
+	}
+	// Must parse as CSV with key,value rows.
+	rows, err := csv.NewReader(&buf).ReadAll()
+	_ = rows
+	if err != nil {
+		// buf was consumed by Contains check above; re-render
+		var buf2 bytes.Buffer
+		FortifyPrinter(&buf2, "csv", r, PrintOptions{NoBanner: true})
+		rows, err = csv.NewReader(&buf2).ReadAll()
+	}
+	if err != nil {
+		t.Fatalf("csv not parseable: %v\n%s", err, out)
+	}
+	// Every summary field appears as a row; functions appear too.
+	wantKeys := map[string]bool{"name": false, "fortify_source": false, "fortified": false, "function": false}
+	for _, row := range rows {
+		if len(row) >= 1 {
+			if _, ok := wantKeys[row[0]]; ok {
+				wantKeys[row[0]] = true
+			}
+		}
+	}
+	for k, found := range wantKeys {
+		if !found {
+			t.Errorf("csv output missing row with key %q:\n%s", k, out)
+		}
+	}
+}
+
 func TestFortifyPrinter_JSONIncludesFunctions(t *testing.T) {
 	var buf bytes.Buffer
 	FortifyPrinter(&buf, "json", sampleFortifyReport(), PrintOptions{NoBanner: true})
@@ -72,7 +112,7 @@ func TestFortifyPrinter_AllFieldsInAllFormats(t *testing.T) {
 	wants := []string{r.Name, r.FortifySource.Value, r.LibcSupport.Value,
 		r.Fortified, r.Fortifiable, r.NoFortify, r.NumLibcFunc, r.NumFileFunc}
 
-	for _, format := range []string{"json", "yaml", "xml", "table"} {
+	for _, format := range []string{"json", "yaml", "xml", "csv", "table"} {
 		t.Run(format, func(t *testing.T) {
 			var buf bytes.Buffer
 			FortifyPrinter(&buf, format, r, PrintOptions{NoBanner: true})

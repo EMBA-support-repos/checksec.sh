@@ -75,6 +75,66 @@ func TestParseX86CETFromNotes_ELFCLASS32(t *testing.T) {
 	}
 }
 
+// TestGNUPropertyPayload verifies the ELF note wrapper (namesz/descsz/type/
+// "GNU\0") is stripped before walking the property array. Section.Data()
+// returns the FULL section bytes — see Go stdlib testdata/libtiffxx.so_:
+//
+//	04 00 00 00 10 00 00 00 05 00 00 00 47 4e 55 00  ← note header + name
+//	02 00 00 c0 04 00 00 00 03 00 00 00 00 00 00 00  ← property array (desc)
+//
+// PR #345 review: walking from offset 0 misreads namesz as pr_type and yields
+// "NO SHSTK & NO IBT" for a binary that has both.
+func TestGNUPropertyPayload(t *testing.T) {
+	le := binary.LittleEndian
+	// Exact bytes from Go stdlib debug/elf/testdata/libtiffxx.so_ section.
+	raw := []byte{
+		0x04, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
+		0x05, 0x00, 0x00, 0x00, 'G', 'N', 'U', 0x00,
+		0x02, 0x00, 0x00, 0xc0, 0x04, 0x00, 0x00, 0x00,
+		0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	}
+	desc := gnuPropertyPayload(raw, le)
+	if len(desc) != 16 || desc[0] != 0x02 {
+		t.Fatalf("gnuPropertyPayload returned wrong slice: len=%d %x", len(desc), desc)
+	}
+	got := parseX86CETFromNotes(desc, le, 8)
+	if !got.ibt || !got.shstk {
+		t.Errorf("parseX86CETFromNotes after header strip = %+v, want {shstk:true ibt:true}", got)
+	}
+}
+
+func TestGNUPropertyPayload_Malformed(t *testing.T) {
+	le := binary.LittleEndian
+	tests := []struct {
+		name string
+		raw  []byte
+	}{
+		{"too short", []byte{0x04, 0x00}},
+		{"wrong name", append([]byte{4, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0}, []byte("XXX\x00abcd")...)},
+		{"wrong type", append([]byte{4, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0}, []byte("GNU\x00abcd")...)},
+		{"descsz overruns", append([]byte{4, 0, 0, 0, 0xff, 0xff, 0xff, 0x7f, 5, 0, 0, 0}, []byte("GNU\x00")...)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := gnuPropertyPayload(tt.raw, le); got != nil {
+				t.Errorf("expected nil for %s, got %x", tt.name, got)
+			}
+		})
+	}
+}
+
+// TestCfi_RealELFWithCET uses the Go stdlib's own ELF test fixture (always
+// present) which carries .note.gnu.property with IBT+SHSTK. End-to-end
+// regression guard for the note-header-offset bug.
+func TestCfi_RealELFWithCET(t *testing.T) {
+	path := goStdlibELFFixture(t, "libtiffxx.so_")
+	ef, _ := openELF(t, path)
+	res := Cfi(ef)
+	if res.Value != "SHSTK & IBT" {
+		t.Errorf("Cfi(%s) = %+v, want SHSTK & IBT", path, res)
+	}
+}
+
 // TestHwCFIDispatch asserts the per-arch dispatch covers i386 and RISC-V.
 func TestHwCFIDispatch(t *testing.T) {
 	tests := []struct {

@@ -1,9 +1,11 @@
 package checksec
 
 import (
+	"io"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 // TestParseProcMaps verifies extraction of unique mapped-file paths from a
@@ -21,7 +23,10 @@ func TestParseProcMaps(t *testing.T) {
 7ffffffde000-7ffffffff000 rw-p 00000000 00:00 0                          [stack]
 7f0000600000-7f0000601000 r--p 00000000 08:01 111 /memfd:foo (deleted)
 `
-	got := ParseProcMaps(strings.NewReader(sample))
+	got, err := ParseProcMaps(strings.NewReader(sample))
+	if err != nil {
+		t.Fatalf("ParseProcMaps: %v", err)
+	}
 	want := []string{
 		"/usr/bin/cat",
 		"/usr/lib/libc.so.6",
@@ -44,7 +49,7 @@ func TestParseProcMaps_VariableWhitespace(t *testing.T) {
 		"7f9c00300000-7f9c00301000 r--p 00000000 08:02 999      /opt/with spaces/lib.so\n" +
 		"7f9c00400000-7f9c00401000 rw-p 00000000 00:00 0\n" + // anonymous, trailing space then nothing
 		"7f9c00500000-7f9c00501000 r--p 00000000 08:02 1\t/usr/lib/tab.so\n" // tab separator
-	got := ParseProcMaps(strings.NewReader(sample))
+	got, _ := ParseProcMaps(strings.NewReader(sample))
 	want := []string{
 		"/usr/lib64/libc.so.6",
 		"/opt/with spaces/lib.so",
@@ -56,8 +61,35 @@ func TestParseProcMaps_VariableWhitespace(t *testing.T) {
 }
 
 func TestParseProcMaps_Empty(t *testing.T) {
-	if got := ParseProcMaps(strings.NewReader("")); got != nil {
+	if got, _ := ParseProcMaps(strings.NewReader("")); got != nil {
 		t.Errorf("ParseProcMaps(empty) = %v, want nil", got)
+	}
+}
+
+// TestParseProcMaps_PropagatesScanError guards the PR-review finding: a read
+// error from the underlying reader must surface, not silently truncate the
+// result set.
+func TestParseProcMaps_PropagatesScanError(t *testing.T) {
+	r := io.MultiReader(
+		strings.NewReader("0-1 r--p 0 0:0 1 /lib/a.so\n"),
+		iotest.ErrReader(io.ErrUnexpectedEOF),
+	)
+	_, err := ParseProcMaps(r)
+	if err == nil {
+		t.Fatal("expected error from failing reader, got nil")
+	}
+}
+
+// TestParseProcMaps_LongLine asserts the scanner buffer is large enough that a
+// realistic-but-long maps line (deep path) doesn't trip bufio.ErrTooLong.
+func TestParseProcMaps_LongLine(t *testing.T) {
+	long := "0-1 r--p 0 0:0 1 /" + strings.Repeat("a", 100_000) + "/x.so\n"
+	got, err := ParseProcMaps(strings.NewReader(long))
+	if err != nil {
+		t.Fatalf("ParseProcMaps long line: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 path from long line, got %d", len(got))
 	}
 }
 
@@ -73,7 +105,7 @@ func TestParseProcMaps_PreservesFirstSeenOrder(t *testing.T) {
 1-2 r--p 0 0:0 2 /a
 2-3 r--p 0 0:0 1 /b
 `
-	got := ParseProcMaps(strings.NewReader(sample))
+	got, _ := ParseProcMaps(strings.NewReader(sample))
 	want := []string{"/b", "/a"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v (first-seen order)", got, want)

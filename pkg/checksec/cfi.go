@@ -56,7 +56,11 @@ func Cfi(file *elf.File) *Result {
 		return res
 	}
 
-	hwOutput, hwColor = hwCFIDispatch(file.Machine, file.Class, propertyData, file.ByteOrder)
+	// Section.Data() returns the FULL note section: namesz|descsz|type|"GNU\0"
+	// followed by the property array (the desc). Extract just the desc.
+	if desc := gnuPropertyPayload(propertyData, file.ByteOrder); desc != nil {
+		hwOutput, hwColor = hwCFIDispatch(file.Machine, file.Class, desc, file.ByteOrder)
+	}
 
 	// Detect Clang CFI presence and classify Single-Module vs Multi-Module
 	clangMode := "none"
@@ -122,6 +126,39 @@ func hwCFIDispatch(m elf.Machine, c elf.Class, data []byte, bo binary.ByteOrder)
 	default:
 		return "", ""
 	}
+}
+
+// ntGnuPropertyType0 is the note type carried by .note.gnu.property
+// (NT_GNU_PROPERTY_TYPE_0 in elf.h).
+const ntGnuPropertyType0 = 5
+
+// gnuPropertyPayload validates the ELF note wrapper at the start of a
+// .note.gnu.property section (namesz=4, type=NT_GNU_PROPERTY_TYPE_0,
+// name="GNU\0") and returns the desc slice — the actual property array that
+// walkGNUProperties expects. Returns nil on malformed input. The desc start
+// (offset 16) satisfies both 4- and 8-byte alignment, so no class-specific
+// padding is needed here.
+func gnuPropertyPayload(raw []byte, bo binary.ByteOrder) []byte {
+	if len(raw) < 16 {
+		return nil
+	}
+	namesz := bo.Uint32(raw[0:4])
+	descsz := bo.Uint32(raw[4:8])
+	ntype := bo.Uint32(raw[8:12])
+	if namesz != 4 || ntype != ntGnuPropertyType0 {
+		return nil
+	}
+	if string(raw[12:16]) != "GNU\x00" {
+		return nil
+	}
+	// name occupies bytes 12..16; desc follows, aligned to `align` (which 16
+	// already satisfies for both 4 and 8).
+	descStart := 16
+	descEnd := descStart + int(descsz)
+	if descEnd < descStart || descEnd > len(raw) {
+		return nil
+	}
+	return raw[descStart:descEnd]
 }
 
 // propAlign returns the GNU property-array entry alignment for the ELF class:

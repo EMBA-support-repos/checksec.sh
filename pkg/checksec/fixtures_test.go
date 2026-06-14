@@ -3,7 +3,9 @@ package checksec
 import (
 	"debug/elf"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +41,21 @@ func requireFixture(t *testing.T, name string) string {
 	p := fixturePath(name)
 	if _, err := os.Stat(p); err != nil {
 		t.Skipf("fixture %q not found: %v", name, err)
+	}
+	return p
+}
+
+// goStdlibELFFixture returns the path to a debug/elf testdata fixture shipped
+// with the Go toolchain (always present), skipping if not found.
+func goStdlibELFFixture(t *testing.T, name string) string {
+	t.Helper()
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		t.Skipf("go env GOROOT: %v", err)
+	}
+	p := filepath.Join(strings.TrimSpace(string(out)), "src", "debug", "elf", "testdata", name)
+	if _, err := os.Stat(p); err != nil {
+		t.Skipf("stdlib fixture %q not found: %v", name, err)
 	}
 	return p
 }

@@ -16,10 +16,13 @@ import (
 //
 //	address           perms offset  dev   inode   pathname
 //	7f0000000000-…    r-xp  0000…   08:01 456     /usr/lib/libc.so.6
-func ParseProcMaps(r io.Reader) []string {
+func ParseProcMaps(r io.Reader) ([]string, error) {
 	var paths []string
 	seen := map[string]bool{}
 	sc := bufio.NewScanner(r)
+	// Raise the default 64KiB token limit so deep paths don't trip
+	// bufio.ErrTooLong and silently truncate the scan.
+	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
 	for sc.Scan() {
 		line := sc.Text()
 		// The pathname column starts after 5 fixed whitespace-separated fields
@@ -38,7 +41,7 @@ func ParseProcMaps(r io.Reader) []string {
 		seen[path] = true
 		paths = append(paths, path)
 	}
-	return paths
+	return paths, sc.Err()
 }
 
 // mapsPathname extracts the pathname (6th) column from a /proc/<pid>/maps line,
@@ -80,5 +83,5 @@ func ProcLibs(pid int) ([]string, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return ParseProcMaps(f), nil
+	return ParseProcMaps(f)
 }
