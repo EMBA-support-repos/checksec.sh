@@ -3,7 +3,9 @@ package checksec
 import (
 	"debug/elf"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,8 +36,6 @@ func loadFixture(t *testing.T, name string) *elf.File {
 }
 
 // requireFixture returns the path to a fixture, skipping the test if it is absent.
-// Use for checks that take a filename (and open the file themselves) rather than
-// an already-parsed *elf.File.
 func requireFixture(t *testing.T, name string) string {
 	t.Helper()
 	p := fixturePath(name)
@@ -43,4 +43,35 @@ func requireFixture(t *testing.T, name string) string {
 		t.Skipf("fixture %q not found: %v", name, err)
 	}
 	return p
+}
+
+// goStdlibELFFixture returns the path to a debug/elf testdata fixture shipped
+// with the Go toolchain (always present), skipping if not found.
+func goStdlibELFFixture(t *testing.T, name string) string {
+	t.Helper()
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		t.Skipf("go env GOROOT: %v", err)
+	}
+	p := filepath.Join(strings.TrimSpace(string(out)), "src", "debug", "elf", "testdata", name)
+	if _, err := os.Stat(p); err != nil {
+		t.Skipf("stdlib fixture %q not found: %v", name, err)
+	}
+	return p
+}
+
+// openELF opens path as both a raw *os.File and a parsed *elf.File, registering
+// cleanup. Use for checks that need either or both handles.
+func openELF(t *testing.T, path string) (*elf.File, *os.File) {
+	t.Helper()
+	raw, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open %q: %v", path, err)
+	}
+	t.Cleanup(func() { _ = raw.Close() })
+	ef, err := elf.NewFile(raw)
+	if err != nil {
+		t.Fatalf("parse ELF %q: %v", path, err)
+	}
+	return ef, raw
 }
