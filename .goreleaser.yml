@@ -3,11 +3,6 @@ project_name: checksec
 
 release:
   prerelease: auto
-  extra_files:
-    - glob: dist/*.sig
-    - glob: dist/*.pub
-    - glob: dist/*.yaml
-    - glob: dist/*.txt
 
 env:
   - DOCKER_CLI_EXPERIMENTAL=enabled
