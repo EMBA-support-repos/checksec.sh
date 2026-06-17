@@ -38,5 +38,6 @@ jobs:
       - name: Push to Docker Hub
         uses: docker/build-push-action@v6
         with:
+          context: .
           push: true
           tags: slimm609/checksec:latest
