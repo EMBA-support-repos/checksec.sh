@@ -1,7 +1,7 @@
 sign-checksec.sh
 checksec.crt
 checksec.key
-tests/binaries/output/
+tests/binaries/output/dist/
 dist/
 /checksec
 docs/superpowers/
