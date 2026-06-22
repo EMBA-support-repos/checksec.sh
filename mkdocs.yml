@@ -1,0 +1,68 @@
+site_name: checksec
+site_description: >-
+  Inspect the security properties of ELF executables and the Linux kernel —
+  RELRO, stack canaries, NX, PIE, CFI, FORTIFY, and more.
+site_url: https://slimm609.github.io/checksec/
+repo_url: https://github.com/slimm609/checksec
+repo_name: slimm609/checksec
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - content.code.copy
+    - content.action.edit
+    - search.highlight
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+# The brainstorming/spec scratch area is not part of the published site.
+exclude_docs: |
+  superpowers/
+
+nav:
+  - Home: index.md
+  - Usage: usage.md
+  - Understanding output: output.md
+  - Checks:
+      - Binary hardening: checks/binary.md
+      - FORTIFY: checks/fortify.md
+      - Process: checks/process.md
+      - Kernel: checks/kernel.md
+  - Advanced: advanced.md
