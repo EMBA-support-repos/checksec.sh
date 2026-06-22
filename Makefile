@@ -18,7 +18,10 @@ build-image:
 build:
 	goreleaser build --snapshot --clean
 
+# Cut a release by pushing a tag. The release workflow
+# (.github/workflows/release.yml) then builds, signs (keyless cosign), and
+# publishes the GitHub release. Run a local dry run first with `make build`.
 .PHONY: release
 release:
 	git tag $(VERSION) -m "release of $(VERSION)"
-	goreleaser release --clean
+	git push origin $(VERSION)

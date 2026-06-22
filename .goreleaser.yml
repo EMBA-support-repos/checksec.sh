@@ -62,4 +62,21 @@ checksum:
   name_template: "{{ .ProjectName }}_checksums.sha512"
   algorithm: sha512
 
+# Keyless cosign signing of the checksums file. The checksums file covers every
+# released artifact (sha512), so signing it authenticates the whole release.
+# Runs in GitHub Actions, where cosign obtains a short-lived certificate from
+# Fulcio via the workflow's OIDC identity and records the signature in Rekor.
+# Produces checksec_checksums.sha512.sig and checksec_checksums.sha512.pem.
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
 report_sizes: true

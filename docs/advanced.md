@@ -65,11 +65,47 @@ but those platforms are not officially supported.
 
 ## Verifying a release signature
 
-Releases are signed. To verify a downloaded `checksec` binary against its
-published signature and public key:
+Releases are signed with [cosign](https://docs.sigstore.dev/) using **keyless**
+signing — there is no long-lived public key to distribute. Each release's
+checksums file is signed in CI, and the signature is tied to the project's
+GitHub Actions identity and recorded in the public [Rekor](https://docs.sigstore.dev/logging/overview/)
+transparency log.
+
+You'll need [cosign installed](https://docs.sigstore.dev/system_config/installation/).
+
+### 1. Download the checksums file and its signature
+
+From the [release page](https://github.com/slimm609/checksec/releases) (or with
+`gh release download <tag>`), grab:
+
+- `checksec_checksums.sha512` — the checksums of every artifact
+- `checksec_checksums.sha512.sig` — its cosign signature
+- `checksec_checksums.sha512.pem` — the signing certificate
+
+### 2. Verify the checksums file is authentic
 
 ```bash
-openssl dgst -sha256 -verify checksec.pub -signature checksec.sig checksec
+cosign verify-blob \
+  --certificate-identity-regexp 'https://github.com/slimm609/checksec/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate checksec_checksums.sha512.pem \
+  --signature checksec_checksums.sha512.sig \
+  checksec_checksums.sha512
 ```
 
-A successful check prints `Verified OK`.
+A successful check prints `Verified OK`. This proves the checksums file was
+produced by the project's release workflow and hasn't been tampered with.
+
+### 3. Verify your downloaded artifact against the checksums
+
+```bash
+# Run from the directory containing both the artifact and the checksums file
+sha512sum --ignore-missing -c checksec_checksums.sha512
+```
+
+This confirms the binary or package you downloaded matches the authenticated
+checksums.
+
+!!! note "Older releases"
+    Releases prior to cosign signing used an OpenSSL-based `checksec.sig` /
+    `checksec.pub` scheme. That method is no longer used.
