@@ -29,6 +29,11 @@ var (
 		"1": {Value: "Partial", Status: StatusWarn},
 		"2": {Value: "Enabled", Status: StatusGood},
 	}
+	bpfDisabled = sysctlValueMap{
+		"0": {Value: "Disabled", Status: StatusBad},
+		"1": {Value: "Enabled", Status: StatusGood},
+		"2": {Value: "Enabled (Locked)", Status: StatusGood},
+	}
 )
 
 var sysctlChecks = []sysctlCheckDef{
@@ -37,7 +42,7 @@ var sysctlChecks = []sysctlCheckDef{
 	{"net.ipv4.conf.all.rp_filter", "Ipv4 reverse path filtering", onOff},
 	{"kernel.yama.ptrace_scope", "YAMA", onOff},
 	{"kernel.exec-shield", "Exec Shield", onOff},
-	{"kernel.unprivileged_bpf_disabled", "Unprivileged BPF Disabled", onOff},
+	{"kernel.unprivileged_bpf_disabled", "Unprivileged BPF Disabled", bpfDisabled},
 	{"kernel.randomize_va_space", "Vanilla Kernel ASLR", tristate},
 	{"kernel.dmesg_restrict", "Dmesg Restrictions", onOff},
 	{"kernel.kptr_restrict", "Kernel Pointer Restrictions", tristate},

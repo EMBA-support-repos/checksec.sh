@@ -37,3 +37,29 @@ func TestSysctlCheck_EachResultHasRequiredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestBpfDisabledValueMapping(t *testing.T) {
+	tests := []struct {
+		value  string
+		want   string
+		status Status
+	}{
+		{"0", "Disabled", StatusBad},
+		{"1", "Enabled", StatusGood},
+		{"2", "Enabled (Locked)", StatusGood},
+	}
+
+	for _, tt := range tests {
+		result, ok := bpfDisabled[tt.value]
+		if !ok {
+			t.Errorf("bpfDisabled[%q] not found", tt.value)
+			continue
+		}
+		if result.Value != tt.want {
+			t.Errorf("bpfDisabled[%q].Value = %q, want %q", tt.value, result.Value, tt.want)
+		}
+		if result.Status != tt.status {
+			t.Errorf("bpfDisabled[%q].Status = %v, want %v", tt.value, result.Status, tt.status)
+		}
+	}
+}
